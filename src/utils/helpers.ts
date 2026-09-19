@@ -18,10 +18,30 @@ export interface Filters {
   smellType: string;
   season: string;
   emotion: string;
+  inQueue: boolean;
+}
+
+/** 同地点判定：忽略首尾空白与大小写 */
+export function isSameLocation(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * 复访队列：仅保留在队记录，按强度从高到低排列；
+ * 强度相同则封存时间（created_at）早者优先。
+ */
+export function getRevisitQueue(memories: SmellMemory[]): SmellMemory[] {
+  return memories
+    .filter((m) => m.in_queue)
+    .sort((a, b) => {
+      if (b.intensity !== a.intensity) return b.intensity - a.intensity;
+      return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
+    });
 }
 
 export function filterMemories(memories: SmellMemory[], filters: Filters): SmellMemory[] {
   return memories.filter(m => {
+    if (filters.inQueue && !m.in_queue) return false;
     if (filters.smellType && m.smell_type !== filters.smellType) return false;
     if (filters.season && m.season !== filters.season) return false;
     if (filters.emotion && m.emotion !== filters.emotion) return false;

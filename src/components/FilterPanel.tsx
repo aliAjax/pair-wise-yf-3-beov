@@ -1,10 +1,10 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, ListChecks } from 'lucide-react';
 import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
 import type { Filters } from '../utils/helpers';
 
 interface Props {
   filters: Filters;
-  onChange: (key: keyof Filters, value: string) => void;
+  onChange: (key: keyof Filters, value: string | boolean) => void;
   onReset: () => void;
   resultCount: number;
 }
@@ -18,7 +18,7 @@ function makeSelectClass(active: boolean) {
 }
 
 export default function FilterPanel({ filters, onChange, onReset, resultCount }: Props) {
-  const hasFilter = filters.smellType || filters.season || filters.emotion;
+  const hasFilter = !!(filters.smellType || filters.season || filters.emotion || filters.inQueue);
 
   return (
     <section className="container max-w-6xl mb-6">
@@ -90,6 +90,19 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
               </select>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onChange('inQueue', !filters.inQueue)}
+            className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+              filters.inQueue
+                ? 'bg-moss-600 text-paper-50 shadow-paper border border-moss-700'
+                : 'bg-paper-50 text-ink-800 border border-paper-300 hover:bg-paper-100 hover:border-paper-400'
+            }`}
+          >
+            <ListChecks className="w-4 h-4" />
+            仅看复访队列
+          </button>
 
           <button
             onClick={onReset}

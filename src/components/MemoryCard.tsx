@@ -1,7 +1,7 @@
 import type { SmellMemory } from '../utils/constants';
 import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, ListPlus, LogOut, ListChecks } from 'lucide-react';
 
 interface Props {
   memory: SmellMemory;
@@ -10,9 +10,10 @@ interface Props {
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleQueue: () => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete, onToggleQueue }: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
@@ -79,6 +80,11 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
                 </span>
               )}
+              {memory.in_queue && (
+                <span className="scent-tag bg-ochre-500 text-paper-50">
+                  <ListChecks className="w-3 h-3" /> 复访队列
+                </span>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -140,12 +146,35 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                 <p className="font-serif text-[15px] leading-relaxed text-ink-800 whitespace-pre-wrap">
                   {memory.memory_text}
                 </p>
+                {memory.in_queue && memory.replace_reason && (
+                  <div className="mt-3 pt-3 border-t border-paper-200/80">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-ochre-600 mb-1">
+                      <ListChecks className="w-3.5 h-3.5" />
+                      复访替换原因
+                    </div>
+                    <p className="text-sm text-ink-700/80 font-serif">{memory.replace_reason}</p>
+                  </div>
+                )}
               </div>
               <div className="mt-3 flex items-center justify-between pt-2 border-t border-paper-200/60">
                 <div className="flex items-center gap-1.5 text-[11px] text-ink-700/50">
                   <span>更新于 {formatDate(memory.updated_at)}</span>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleQueue(); }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                      memory.in_queue
+                        ? 'text-ink-700/70 hover:bg-paper-200'
+                        : 'text-moss-600 hover:bg-moss-100'
+                    }`}
+                  >
+                    {memory.in_queue ? (
+                      <><LogOut className="w-3.5 h-3.5" /> 移出复访</>
+                    ) : (
+                      <><ListPlus className="w-3.5 h-3.5" /> 加入复访</>
+                    )}
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onEdit(); }}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"
@@ -165,6 +194,17 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
 
           {!isExpanded && (
             <div className="px-4 pb-3 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mt-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleQueue(); }}
+                title={memory.in_queue ? '移出复访队列' : '加入复访队列'}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                  memory.in_queue
+                    ? 'text-ink-700/70 hover:bg-paper-200'
+                    : 'text-moss-600 hover:bg-moss-100'
+                }`}
+              >
+                {memory.in_queue ? <LogOut className="w-3.5 h-3.5" /> : <ListPlus className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"

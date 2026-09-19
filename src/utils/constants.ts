@@ -16,6 +16,10 @@ export interface SmellMemory {
   want_again: boolean;
   created_at: string;
   updated_at: string;
+  /** 是否在复访队列中；旧数据无此字段，默认不在队列 */
+  in_queue?: boolean;
+  /** 入列时替换同地点旧记录所填写的替换原因 */
+  replace_reason?: string | null;
 }
 
 export const SEASONS: { value: Season; label: string; emoji: string }[] = [
