@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, CalendarClock } from 'lucide-react';
 import type { SmellMemory, Season, SmellType, Emotion } from '../utils/constants';
 import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
 import type { MemoryInput } from '../store/memoryStore';
+import { useMemoryStore, normalizeLocation } from '../store/memoryStore';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: MemoryInput) => void;
+  /** 返回 false 表示提交被拒绝（如缺少替换原因），弹窗保持打开 */
+  onSubmit: (data: MemoryInput, options: MemorySubmitOptions) => boolean;
   editingData: SmellMemory | null;
+}
+
+export interface MemorySubmitOptions {
+  joinQueue: boolean;
+  replaceReason?: string;
 }
 
 const defaultForm: MemoryInput = {
@@ -29,7 +36,28 @@ const humidityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: Props) {
   const [form, setForm] = useState<MemoryInput>(defaultForm);
+  const [joinQueue, setJoinQueue] = useState(false);
+  const [replaceReason, setReplaceReason] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const memories = useMemoryStore((s) => s.memories);
+  const queueIds = useMemoryStore((s) => s.queueIds);
+  const editingQueued = !!editingData && queueIds.includes(editingData.id);
+
+  // 当前填写地点是否与队列中已有记录冲突（编辑时排除自身）
+  const conflictLocation = (() => {
+    const loc = normalizeLocation(form.location);
+    if (!loc) return undefined;
+    const clash = memories.find(
+      (m) =>
+        m.id !== editingData?.id &&
+        queueIds.includes(m.id) &&
+        normalizeLocation(m.location) === loc,
+    );
+    return clash?.location;
+  })();
+  const needReplaceReason = joinQueue && !!conflictLocation;
 
   useEffect(() => {
     if (isOpen) {
@@ -40,12 +68,15 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
       } else {
         setForm(defaultForm);
       }
+      setJoinQueue(editingData ? queueIds.includes(editingData.id) : false);
+      setReplaceReason('');
+      setSubmitError('');
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [isOpen, editingData]);
+  }, [isOpen, editingData, queueIds]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -60,8 +91,17 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.location.trim()) return;
-    onSubmit(form);
-    onClose();
+    if (needReplaceReason && !replaceReason.trim()) {
+      setSubmitError('该地点已在复访队列中，必须填写替换原因才能让新记录入列');
+      return;
+    }
+    const ok = onSubmit(
+      form,
+      needReplaceReason
+        ? { joinQueue, replaceReason: replaceReason.trim() }
+        : { joinQueue },
+    );
+    if (ok) onClose();
   };
 
   if (!isOpen) return null;
@@ -299,6 +339,53 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-ink-700 mb-2">复访队列</label>
+              <div
+                className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer select-none transition-colors ${
+                  joinQueue
+                    ? 'bg-lavender-300/20 border-lavender-300/70'
+                    : 'bg-paper-100 border-paper-200'
+                }`}
+                onClick={() => { setJoinQueue(!joinQueue); setSubmitError(''); }}
+              >
+                <div className={`toggle-switch ${joinQueue ? 'active' : ''}`} />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-ink-800 flex items-center gap-1.5">
+                    <CalendarClock className={`w-4 h-4 ${joinQueue ? 'text-lavender-600' : 'text-ink-700/50'}`} />
+                    {joinQueue ? '⏳ 加入复访队列' : '加入复访队列'}
+                  </div>
+                  <div className="text-[11px] text-ink-700/55 mt-0.5">
+                    {editingQueued
+                      ? '该记录当前在队列中；关闭开关将其移出（档案仍保留）'
+                      : '按强度从高到低排序，同地点队列中只保留一条'}
+                  </div>
+                </div>
+              </div>
+
+              {needReplaceReason && (
+                <div className="mt-3 p-3 rounded-xl bg-lavender-300/15 border border-lavender-300/60">
+                  <label className="block text-sm font-medium text-lavender-600 mb-1.5">
+                    替换原因 *
+                  </label>
+                  <p className="text-[11px] text-ink-700/60 mb-2">
+                    队列中已有同地点记录「{conflictLocation}」。填写原因后，旧记录会留在档案中但移出队列，由这条记录取代。
+                  </p>
+                  <textarea
+                    value={replaceReason}
+                    onChange={(e) => { setReplaceReason(e.target.value); setSubmitError(''); }}
+                    rows={2}
+                    placeholder="例如：老衣柜翻新过，樟木味淡了很多……"
+                    className="scent-textarea text-sm"
+                  />
+                </div>
+              )}
+
+              {submitError && (
+                <p className="mt-2 text-xs text-brick-600 font-medium">{submitError}</p>
+              )}
             </div>
           </div>
 

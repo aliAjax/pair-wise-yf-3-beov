@@ -59,6 +59,16 @@ export function getTopIntensityMemories(memories: SmellMemory[], n = 5): SmellMe
   return [...memories].sort((a, b) => b.intensity - a.intensity).slice(0, n);
 }
 
+/**
+ * 复访队列排序：强度从高到低；强度相同按封存时间（created_at）早者优先。
+ */
+export function sortRevisitQueue(memories: SmellMemory[]): SmellMemory[] {
+  return [...memories].sort((a, b) => {
+    if (b.intensity !== a.intensity) return b.intensity - a.intensity;
+    return a.created_at.localeCompare(b.created_at);
+  });
+}
+
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
   return {

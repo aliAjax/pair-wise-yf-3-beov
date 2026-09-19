@@ -1,18 +1,20 @@
 import type { SmellMemory } from '../utils/constants';
 import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, CalendarClock, CalendarX } from 'lucide-react';
 
 interface Props {
   memory: SmellMemory;
   index: number;
   isExpanded: boolean;
+  isQueued: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleQueue: () => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({ memory, index, isExpanded, isQueued, onToggle, onEdit, onDelete, onToggleQueue }: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
@@ -77,6 +79,11 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
               {memory.want_again && (
                 <span className="scent-tag bg-moss-100 text-moss-600">
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
+                </span>
+              )}
+              {isQueued && (
+                <span className="scent-tag bg-lavender-300/30 text-lavender-600">
+                  <CalendarClock className="w-3 h-3" /> 复访中
                 </span>
               )}
             </div>
@@ -147,6 +154,20 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={(e) => { e.stopPropagation(); onToggleQueue(); }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                      isQueued
+                        ? 'text-lavender-600 hover:bg-lavender-300/25'
+                        : 'text-ink-700/60 hover:bg-paper-200'
+                    }`}
+                  >
+                    {isQueued ? (
+                      <><CalendarX className="w-3.5 h-3.5" /> 移出复访</>
+                    ) : (
+                      <><CalendarClock className="w-3.5 h-3.5" /> 加入复访</>
+                    )}
+                  </button>
+                  <button
                     onClick={(e) => { e.stopPropagation(); onEdit(); }}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"
                   >
@@ -165,6 +186,17 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
 
           {!isExpanded && (
             <div className="px-4 pb-3 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mt-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleQueue(); }}
+                title={isQueued ? '移出复访队列' : '加入复访队列'}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                  isQueued
+                    ? 'text-lavender-600 hover:bg-lavender-300/25'
+                    : 'text-ink-700/60 hover:bg-paper-200'
+                }`}
+              >
+                {isQueued ? <CalendarX className="w-3.5 h-3.5" /> : <CalendarClock className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"

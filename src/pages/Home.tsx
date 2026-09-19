@@ -4,9 +4,11 @@ import FilterPanel from '../components/FilterPanel';
 import VisualizationPanel from '../components/VisualizationPanel';
 import MemoryCard from '../components/MemoryCard';
 import MemoryModal from '../components/MemoryModal';
-import { useMemoryStore } from '../store/memoryStore';
+import type { MemorySubmitOptions } from '../components/MemoryModal';
+import RevisitQueue from '../components/RevisitQueue';
+import { useMemoryStore, normalizeLocation } from '../store/memoryStore';
 import type { Filters } from '../utils/helpers';
-import { filterMemories } from '../utils/helpers';
+import { filterMemories, sortRevisitQueue } from '../utils/helpers';
 import type { SmellMemory } from '../utils/constants';
 import type { MemoryInput } from '../store/memoryStore';
 import { BookOpenCheck } from 'lucide-react';
@@ -18,7 +20,17 @@ const defaultFilters: Filters = {
 };
 
 export default function Home() {
-  const { memories, initIfEmpty, addMemory, updateMemory, deleteMemory } = useMemoryStore();
+  const {
+    memories,
+    queueIds,
+    queueMeta,
+    initIfEmpty,
+    addMemory,
+    updateMemory,
+    deleteMemory,
+    enqueue,
+    dequeue,
+  } = useMemoryStore();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,6 +45,15 @@ export default function Home() {
     [memories, filters],
   );
 
+  // 复访队列：按强度降序、同强度封存时间早者优先；并随当前筛选同步
+  const queuedMemories = useMemo(() => {
+    const byId = new Map(memories.map((m) => [m.id, m]));
+    const queued = queueIds
+      .map((id) => byId.get(id))
+      .filter((m): m is SmellMemory => !!m);
+    return sortRevisitQueue(filterMemories(queued, filters));
+  }, [memories, queueIds, filters]);
+
   const handleFilterChange = (key: keyof Filters, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
   };
@@ -41,20 +62,74 @@ export default function Home() {
   const openAddModal = () => { setEditing(null); setModalOpen(true); };
   const openEditModal = (m: SmellMemory) => { setEditing(m); setModalOpen(true); };
 
-  const handleSubmit = (data: MemoryInput) => {
+  const handleSubmit = (data: MemoryInput, options: MemorySubmitOptions): boolean => {
     if (editing) {
+      const wasQueued = queueIds.includes(editing.id);
       updateMemory(editing.id, data);
-    } else {
-      addMemory(data);
+      if (options.joinQueue) {
+        const result = enqueue(editing.id, options.replaceReason);
+        if (!result.ok) {
+          window.alert(
+            result.error === 'missing_reason'
+              ? '该地点已在复访队列中，必须填写替换原因才能入列'
+              : '入列失败，请重试',
+          );
+          return false;
+        }
+      } else if (wasQueued) {
+        dequeue(editing.id);
+      }
+      return true;
     }
+
+    const created = addMemory(data);
+    if (options.joinQueue) {
+      const result = enqueue(created.id, options.replaceReason);
+      if (!result.ok) {
+        window.alert(
+          result.error === 'missing_reason'
+            ? '该地点已在复访队列中，必须填写替换原因才能入列'
+            : '入列失败，请重试',
+        );
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleDelete = (id: string) => {
     const target = memories.find((m) => m.id === id);
-    const msg = `确认删除「${target?.location ?? '这段记忆'}」吗？`;
+    const inQueue = queueIds.includes(id);
+    const msg = `确认删除「${target?.location ?? '这段记忆'}」吗？${inQueue ? '它同时在复访队列中，会一并移出。' : ''}`;
     if (window.confirm(msg)) {
       deleteMemory(id);
       if (expandedId === id) setExpandedId(null);
+    }
+  };
+
+  const handleToggleQueue = (m: SmellMemory) => {
+    if (queueIds.includes(m.id)) {
+      dequeue(m.id);
+      return;
+    }
+    const loc = normalizeLocation(m.location);
+    const clash = memories.find(
+      (x) => x.id !== m.id && queueIds.includes(x.id) && normalizeLocation(x.location) === loc,
+    );
+    if (clash) {
+      const reason = window.prompt(
+        `队列中已有同地点记录「${clash.location}」。\n` +
+          '旧记录会留在档案中但移出队列，由这条记录取代。\n' +
+          '请填写替换原因（必填，留空则取消）：',
+      );
+      if (reason === null) return;
+      const result = enqueue(m.id, reason);
+      if (!result.ok && result.error === 'missing_reason') {
+        // 原因缺失：拒绝，队列保持不变
+        window.alert('替换原因不能为空，已取消入列，队列未改变。');
+      }
+    } else {
+      enqueue(m.id);
     }
   };
 
@@ -68,7 +143,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <Header onAdd={openAddModal} memoryCount={memories.length} />
+      <Header
+        onAdd={openAddModal}
+        memoryCount={memories.length}
+        queueCount={queueIds.length}
+      />
 
       <main className="container max-w-6xl pb-20">
         <FilterPanel
@@ -76,6 +155,14 @@ export default function Home() {
           onChange={handleFilterChange}
           onReset={resetFilters}
           resultCount={filteredMemories.length}
+        />
+
+        <RevisitQueue
+          memories={queuedMemories}
+          queueMeta={queueMeta}
+          totalCount={queueIds.length}
+          onSelect={scrollToCard}
+          onDequeue={dequeue}
         />
 
         <VisualizationPanel memories={filteredMemories} onSelect={scrollToCard} />
@@ -123,9 +210,11 @@ export default function Home() {
                     memory={m}
                     index={idx}
                     isExpanded={expandedId === m.id}
+                    isQueued={queueIds.includes(m.id)}
                     onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                     onEdit={() => openEditModal(m)}
                     onDelete={() => handleDelete(m.id)}
+                    onToggleQueue={() => handleToggleQueue(m)}
                   />
                 </div>
               ))}
